@@ -1,6 +1,9 @@
 import esbuild from "esbuild";
 import process from "process";
 import { builtinModules } from 'node:module';
+import fs from "fs";
+import path from "path";
+import { execSync } from "child_process";
 
 const banner =
 `/*
@@ -10,6 +13,53 @@ if you want to view the source, please visit the github repository of this plugi
 `;
 
 const prod = (process.argv[2] === "production");
+
+const copyPlugin = {
+	name: 'copy-to-vaults',
+	setup(build) {
+		build.onEnd(() => {
+			const destinations = [
+				"/Users/xy/Library/Mobile Documents/iCloud~md~obsidian/Documents/bfcs/.obsidian/plugins/obsidian-file-editor",
+				"/Users/xy/Library/Mobile Documents/iCloud~md~obsidian/Documents/obsidian-demo/.obsidian/plugins/obsidian-file-editor"
+			];
+			const filesToCopy = [
+				"main.js",
+				"manifest.json",
+				"styles.css"
+			];
+			
+			destinations.forEach(dest => {
+				try {
+					if (!fs.existsSync(dest)) {
+						fs.mkdirSync(dest, { recursive: true });
+					}
+					filesToCopy.forEach(file => {
+						if (fs.existsSync(file)) {
+							const destPath = path.join(dest, file);
+							if (fs.existsSync(destPath)) {
+								fs.unlinkSync(destPath);
+							}
+							fs.linkSync(file, destPath);
+							console.log(`[CopyPlugin] Hard-linked ${file} to ${dest}`);
+						}
+					});
+				} catch (err) {
+					console.error(`[CopyPlugin] Failed to link to ${dest}:`, err);
+				}
+			});
+
+			// Trigger Obsidian vault reload synchronously
+			try {
+				execSync("obsidian reload");
+				console.log("[CopyPlugin] Obsidian reload triggered successfully");
+			} catch (err) {
+				console.error("[CopyPlugin] Failed to reload Obsidian:", err.message);
+			}
+		});
+	}
+};
+
+
 
 const context = await esbuild.context({
 	banner: {
@@ -39,6 +89,7 @@ const context = await esbuild.context({
 	treeShaking: true,
 	outfile: "main.js",
 	minify: prod,
+	plugins: [copyPlugin],
 });
 
 if (prod) {
@@ -47,3 +98,4 @@ if (prod) {
 } else {
 	await context.watch();
 }
+

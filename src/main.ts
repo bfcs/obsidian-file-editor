@@ -1,99 +1,246 @@
-import {App, Editor, MarkdownView, Modal, Notice, Plugin} from 'obsidian';
-import {DEFAULT_SETTINGS, MyPluginSettings, SampleSettingTab} from "./settings";
+import { Plugin, TextFileView, WorkspaceLeaf, TFile } from 'obsidian';
+import { EditorState, Extension, Compartment } from '@codemirror/state';
+import { EditorView } from '@codemirror/view';
+import { basicSetup } from 'codemirror';
+import { json } from '@codemirror/lang-json';
+import { xml } from '@codemirror/lang-xml';
+import { yaml } from '@codemirror/lang-yaml';
+import { StreamLanguage, HighlightStyle, syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
+import { toml } from '@codemirror/legacy-modes/mode/toml';
+import { tags as t } from '@lezer/highlight';
 
-// Remember to rename these classes and interfaces!
+import { FileEditorSettings, DEFAULT_SETTINGS, FileEditorSettingTab } from './settings';
+
+export const VIEW_TYPE_CODE_EDITOR = "code-editor-view";
+
+const obsidianHighlightStyle = HighlightStyle.define([
+	{ tag: [t.keyword, t.modifier, t.operatorKeyword, t.controlKeyword, t.definitionKeyword, t.moduleKeyword], color: "var(--code-keyword)" },
+	{ tag: [t.name, t.deleted, t.character, t.macroName, t.variableName, t.labelName, t.definition(t.name)], color: "var(--code-normal)" },
+	{ tag: [t.propertyName, t.attributeName], color: "var(--code-property)" },
+	{ tag: [t.processingInstruction, t.string, t.inserted, t.special(t.string)], color: "var(--code-string)" },
+	{ tag: [t.function(t.variableName), t.tagName, t.angleBracket], color: "var(--code-function)" },
+	{ tag: [t.color, t.constant(t.name), t.standard(t.name), t.number, t.changed, t.annotation, t.self, t.namespace, t.atom, t.bool, t.null], color: "var(--code-value)" },
+	{ tag: [t.className, t.typeName], color: "var(--code-type)" },
+	{ tag: [t.operator, t.derefOperator, t.arithmeticOperator, t.logicOperator, t.bitwiseOperator, t.compareOperator, t.updateOperator, t.definitionOperator, t.typeOperator, t.controlOperator], color: "var(--code-operator)" },
+	{ tag: [t.separator, t.punctuation, t.bracket, t.squareBracket], color: "var(--code-normal)" },
+	{ tag: [t.url, t.escape, t.regexp, t.link], color: "var(--code-string)" },
+	{ tag: [t.meta, t.comment, t.documentMeta, t.lineComment, t.blockComment], color: "var(--code-comment)", fontStyle: "italic" },
+	{ tag: t.strong, fontWeight: "bold" },
+	{ tag: t.emphasis, fontStyle: "italic" },
+	{ tag: t.strikethrough, textDecoration: "line-through" },
+	{ tag: t.link, textDecoration: "underline" },
+	{ tag: [t.heading, t.heading1, t.heading2, t.heading3, t.heading4, t.heading5, t.heading6], fontWeight: "bold", color: "var(--text-title-h1)" },
+	{ tag: t.invalid, color: "var(--text-error)" },
+]);
+
+class CodeEditorView extends TextFileView {
+	editor: EditorView;
+	editorEl: HTMLElement;
+	languageCompartment = new Compartment();
+
+	constructor(leaf: WorkspaceLeaf) {
+		super(leaf);
+	}
+
+	getViewType(): string {
+		return VIEW_TYPE_CODE_EDITOR;
+	}
+
+	getDisplayText(): string {
+		return this.file ? this.file.name : "Code Editor";
+	}
+
+	getIcon(): string {
+		return "document";
+	}
+
+	async onOpen() {
+		this.editorEl = this.contentEl.createDiv("datafile-source-view mod-cm6");
+		
+		this.editor = new EditorView({
+			state: EditorState.create({
+				doc: this.data,
+				extensions: [
+					basicSetup,
+					this.languageCompartment.of(this.getLanguageExtension()),
+					syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+					syntaxHighlighting(obsidianHighlightStyle),
+					EditorView.theme({
+						"&": { height: "100%" }
+					}),
+					EditorView.updateListener.of((v) => {
+						if (v.docChanged) {
+							this.requestSave();
+						}
+					})
+				]
+			}),
+			parent: this.editorEl
+		});
+
+		this.app.workspace.trigger("codemirror", this.editor);
+	}
+
+	async onClose() {
+		if (this.editor) {
+			this.editor.destroy();
+		}
+	}
+
+	getLanguageExtension(): Extension {
+		const ext = this.file?.extension?.toLowerCase();
+		let langExtension: Extension = [];
+
+		if (ext === 'json') {
+			langExtension = json();
+		} else if (ext === 'xml') {
+			langExtension = xml();
+		} else if (ext === 'toml') {
+			langExtension = StreamLanguage.define(toml);
+		} else if (ext === 'yaml' || ext === 'yml') {
+			langExtension = yaml();
+		}
+
+		return langExtension;
+	}
+
+	getViewData(): string {
+		return this.editor ? this.editor.state.doc.toString() : this.data;
+	}
+
+	setViewData(data: string, clear: boolean): void {
+		if (this.editor) {
+			this.editor.dispatch({
+				changes: {from: 0, to: this.editor.state.doc.length, insert: data},
+				effects: this.languageCompartment.reconfigure(this.getLanguageExtension())
+			});
+		} else {
+			this.data = data;
+		}
+	}
+
+	clear(): void {
+		if (this.editor) {
+			this.editor.dispatch({
+				changes: {from: 0, to: this.editor.state.doc.length, insert: ""}
+			});
+		}
+	}
+}
 
 export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+	settings: FileEditorSettings;
 
 	async onload() {
 		await this.loadSettings();
+		this.addSettingTab(new FileEditorSettingTab(this.app, this));
 
-		// This creates an icon in the left ribbon.
-		this.addRibbonIcon('dice', 'Sample', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
+		this.registerView(
+			VIEW_TYPE_CODE_EDITOR,
+			(leaf) => new CodeEditorView(leaf)
+		);
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status bar text');
+		const activeExtensions = [];
+		if (this.settings.enableJson) activeExtensions.push("json");
+		if (this.settings.enableXml) activeExtensions.push("xml");
+		if (this.settings.enableYaml) activeExtensions.push("yaml", "yml");
+		if (this.settings.enableToml) activeExtensions.push("toml");
+		if (this.settings.enableTxt) activeExtensions.push("txt");
 
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-modal-simple',
-			name: 'Open modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
+		if (activeExtensions.length > 0) {
+			try {
+				this.registerExtensions(activeExtensions, VIEW_TYPE_CODE_EDITOR);
+			} catch (error) {
+				console.warn("obsidian-file-editor: extensions already registered or failed to register", error);
 			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'replace-selected',
-			name: 'Replace selected content',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				editor.replaceSelection('Sample editor command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-modal-complex',
-			name: 'Open modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
+		}
 
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-				return false;
-			}
-		});
-
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			new Notice("Click");
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
-
-	}
-
-	onunload() {
+		this.registerContextMenuCommand();
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<MyPluginSettings>);
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 	}
 
 	async saveSettings() {
 		await this.saveData(this.settings);
 	}
-}
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
+	private registerContextMenuCommand(): void {
+		this.registerEvent(
+			this.app.workspace.on("file-menu", (menu, file) => {
+				const parent = file instanceof TFile ? file.parent : file;
+				
+				if (this.settings.enableJson) {
+					menu.addItem((item) => {
+						item.setTitle(`Create new JSON`)
+							.setIcon("document")
+							.onClick(async () => {
+								if (parent) await this.createFile(parent.path, "json");
+							});
+					});
+				}
+				if (this.settings.enableXml) {
+					menu.addItem((item) => {
+						item.setTitle(`Create new XML`)
+							.setIcon("document")
+							.onClick(async () => {
+								if (parent) await this.createFile(parent.path, "xml");
+							});
+					});
+				}
+				if (this.settings.enableYaml) {
+					menu.addItem((item) => {
+						item.setTitle(`Create new YAML`)
+							.setIcon("document")
+							.onClick(async () => {
+								if (parent) await this.createFile(parent.path, "yaml");
+							});
+					});
+				}
+				if (this.settings.enableToml) {
+					menu.addItem((item) => {
+						item.setTitle(`Create new TOML`)
+							.setIcon("document")
+							.onClick(async () => {
+								if (parent) await this.createFile(parent.path, "toml");
+							});
+					});
+				}
+				if (this.settings.enableTxt) {
+					menu.addItem((item) => {
+						item.setTitle(`Create new TXT`)
+							.setIcon("document")
+							.onClick(async () => {
+								if (parent) await this.createFile(parent.path, "txt");
+							});
+					});
+				}
+			})
+		);
 	}
 
-	onOpen() {
-		let {contentEl} = this;
-		contentEl.setText('Woah!');
+	private async createFile(dirPath: string, extension: string): Promise<void> {
+		const { vault } = this.app;
+		let name = `Untitled.${extension}`;
+		let filePath = `${dirPath === "/" ? "" : dirPath + "/"}${name}`;
+		let i = 1;
+		
+		while (await vault.adapter.exists(filePath)) {
+			name = `Untitled ${i}.${extension}`;
+			filePath = `${dirPath === "/" ? "" : dirPath + "/"}${name}`;
+			i++;
+		}
+
+		try {
+			const newFile = await vault.create(filePath, '');
+			const leaf = this.app.workspace.getLeaf(true);
+			await leaf.openFile(newFile);
+		} catch (error) {
+			console.error("Failed to create file:", error);
+		}
 	}
 
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
+	onunload() {
 	}
 }
