@@ -1,8 +1,280 @@
-/*
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+/* ========================================================
+   Code Editor Theme & Gutters Integration (Dark / Light)
+   ======================================================== */
+.datafile-source-view.mod-cm6 {
+	height: 100%;
+	width: 100%;
+	background-color: var(--background-primary);
+	color: var(--text-normal);
+}
 
-If your plugin does not need CSS, delete this file.
+.datafile-source-view.mod-cm6 .cm-editor {
+	height: 100%;
+	background-color: var(--background-primary);
+	color: var(--text-normal);
+}
 
-*/
+.datafile-source-view.mod-cm6 .cm-scroller {
+	font-family: var(--font-monospace);
+	line-height: var(--line-height-normal, 1.5);
+}
+
+/* Gutters (Line Numbers Column) - Matches Obsidian Theme */
+.datafile-source-view.mod-cm6 .cm-gutters {
+	background-color: var(--background-primary) !important;
+	color: var(--text-faint) !important;
+	border-right: 1px solid var(--background-modifier-border) !important;
+}
+
+.datafile-source-view.mod-cm6 .cm-gutterElement {
+	color: var(--text-faint) !important;
+	padding: 0 8px 0 16px;
+	font-family: var(--font-monospace);
+	font-size: 0.9em;
+}
+
+/* Active Line Number in Gutter */
+.datafile-source-view.mod-cm6 .cm-activeLineGutter {
+	background-color: var(--background-modifier-hover, rgba(255, 255, 255, 0.06)) !important;
+	color: var(--text-normal) !important;
+	font-weight: 600;
+}
+
+/* Active Line in Code Area */
+.datafile-source-view.mod-cm6 .cm-activeLine {
+	background-color: var(--background-modifier-hover, rgba(255, 255, 255, 0.03)) !important;
+}
+
+/* Cursor / Caret */
+.datafile-source-view.mod-cm6 .cm-cursor,
+.datafile-source-view.mod-cm6 .cm-dropCursor {
+	border-left-color: var(--text-normal) !important;
+}
+
+/* Selection Highlight */
+.datafile-source-view.mod-cm6 .cm-selectionBackground,
+.datafile-source-view.mod-cm6 ::selection {
+	background-color: var(--text-selection) !important;
+}
+
+
+/* Syntax Highlighting CSS Variables for Obsidian File Editor */
+:root,
+.theme-dark {
+	--code-normal: var(--text-normal, #abb2bf);
+	--code-keyword: var(--color-pink, #e06c75);
+	--code-operator: var(--color-cyan, #56b6c2);
+	--code-property: var(--color-cyan, #56b6c2);
+	--code-string: var(--color-green, #98c379);
+	--code-function: var(--color-blue, #61afef);
+	--code-value: var(--color-orange, #d19a66);
+	--code-type: var(--color-yellow, #e5c07b);
+	--code-comment: var(--text-muted, #7f848e);
+	--code-punctuation: var(--text-muted, #abb2bf);
+	--code-tag: var(--color-red, #e06c75);
+}
+
+.theme-light {
+	--code-normal: var(--text-normal, #383a42);
+	--code-keyword: var(--color-pink, #a626a4);
+	--code-operator: var(--color-cyan, #0184bc);
+	--code-property: var(--color-cyan, #4078f2);
+	--code-string: var(--color-green, #50a14f);
+	--code-function: var(--color-blue, #4078f2);
+	--code-value: var(--color-orange, #986801);
+	--code-type: var(--color-yellow, #c18401);
+	--code-comment: var(--text-muted, #a0a1a7);
+	--code-punctuation: var(--text-muted, #383a42);
+	--code-tag: var(--color-red, #e45649);
+}
+
+/* Badges Container */
+.file-editor-badge-container {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 10px 0 14px 0;
+	padding: 10px;
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	min-height: 52px;
+	align-items: center;
+}
+
+.file-editor-empty-hint {
+	color: var(--text-muted);
+	font-style: italic;
+	font-size: 0.9em;
+	padding: 4px 6px;
+}
+
+/* Single Extension Badge */
+.file-editor-badge {
+	display: inline-flex;
+	align-items: center;
+	background-color: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 16px;
+	padding: 3px 6px 3px 10px;
+	font-size: 0.85em;
+	font-family: var(--font-monospace);
+	color: var(--text-normal);
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+	transition: all 0.15s ease;
+	user-select: none;
+}
+
+.file-editor-badge:hover {
+	border-color: var(--interactive-accent);
+}
+
+.file-editor-badge-text {
+	font-weight: 500;
+}
+
+/* Badge Close (x) Button */
+.file-editor-badge-close {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	margin-left: 6px;
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	cursor: pointer;
+	color: var(--text-muted);
+	background: transparent;
+	border: none;
+	padding: 0;
+	transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.file-editor-badge-close:hover {
+	background-color: var(--background-modifier-error, rgba(235, 87, 87, 0.18));
+	color: var(--text-error, #e06c75);
+}
+
+.file-editor-badge-close svg {
+	width: 12px;
+	height: 12px;
+	stroke-width: 2.5;
+}
+
+/* Action bar under active badges */
+.file-editor-badge-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-bottom: 20px;
+}
+
+/* Preset Group Styles */
+.file-editor-preset-group {
+	margin-bottom: 14px;
+	padding: 12px 14px;
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+}
+
+.file-editor-preset-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	gap: 12px;
+	margin-bottom: 8px;
+}
+
+.file-editor-preset-title-wrap {
+	flex: 1;
+}
+
+.file-editor-preset-title {
+	font-weight: 600;
+	font-size: 0.95em;
+	color: var(--text-normal);
+}
+
+.file-editor-preset-desc {
+	font-size: 0.8em;
+	color: var(--text-muted);
+	margin-top: 2px;
+}
+
+.file-editor-preset-actions {
+	display: flex;
+	gap: 6px;
+	flex-shrink: 0;
+}
+
+.file-editor-preset-items {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 8px;
+}
+
+/* Preset Item Button */
+.file-editor-preset-btn {
+	display: inline-flex;
+	align-items: center;
+	padding: 3px 9px;
+	border-radius: 14px;
+	font-size: 0.82em;
+	font-family: var(--font-monospace);
+	cursor: pointer;
+	background-color: var(--background-primary);
+	border: 1px dashed var(--background-modifier-border);
+	color: var(--text-muted);
+	transition: all 0.15s ease;
+	user-select: none;
+}
+
+.file-editor-preset-btn:hover {
+	border-style: solid;
+	border-color: var(--interactive-accent);
+	color: var(--interactive-accent);
+	background-color: var(--background-modifier-hover);
+}
+
+.file-editor-preset-btn.is-added {
+	border-style: solid;
+	border-color: var(--interactive-accent);
+	background-color: var(--background-modifier-active-hover, rgba(120, 120, 255, 0.12));
+	color: var(--interactive-accent);
+	font-weight: 500;
+}
+
+.file-editor-preset-btn.is-added:hover {
+	border-color: var(--text-error);
+	color: var(--text-error);
+	background-color: var(--background-modifier-error, rgba(235, 87, 87, 0.12));
+}
+
+/* ========================================================
+   StreamLanguage Legacy Mode Class Bindings
+   ======================================================== */
+.datafile-source-view.mod-cm6 .cm-keyword { color: var(--code-keyword, var(--color-pink, #e06c75)); }
+.datafile-source-view.mod-cm6 .cm-operator { color: var(--code-operator, var(--color-cyan, #56b6c2)); }
+.datafile-source-view.mod-cm6 .cm-property { color: var(--code-property, var(--color-cyan, #56b6c2)); }
+.datafile-source-view.mod-cm6 .cm-string,
+.datafile-source-view.mod-cm6 .cm-string-2 { color: var(--code-string, var(--color-green, #98c379)); }
+.datafile-source-view.mod-cm6 .cm-def { color: var(--code-function, var(--color-blue, #61afef)); }
+.datafile-source-view.mod-cm6 .cm-variable { color: var(--code-normal, var(--text-normal, #abb2bf)); }
+.datafile-source-view.mod-cm6 .cm-variable-2,
+.datafile-source-view.mod-cm6 .cm-variable-3 { color: var(--code-normal, var(--text-normal, #abb2bf)); }
+.datafile-source-view.mod-cm6 .cm-number { color: var(--code-value, var(--color-orange, #d19a66)); }
+.datafile-source-view.mod-cm6 .cm-atom { color: var(--code-value, var(--color-orange, #d19a66)); }
+.datafile-source-view.mod-cm6 .cm-type { color: var(--code-type, var(--color-yellow, #e5c07b)); }
+.datafile-source-view.mod-cm6 .cm-comment { color: var(--code-comment, var(--text-muted, #7f848e)); font-style: italic; }
+.datafile-source-view.mod-cm6 .cm-meta { color: var(--code-comment, var(--text-muted, #7f848e)); }
+.datafile-source-view.mod-cm6 .cm-header { color: var(--text-title-h1, var(--color-blue, #61afef)); font-weight: bold; }
+.datafile-source-view.mod-cm6 .cm-qualifier { color: var(--code-type, var(--color-yellow, #e5c07b)); }
+.datafile-source-view.mod-cm6 .cm-builtin { color: var(--code-keyword, var(--color-pink, #e06c75)); }
+.datafile-source-view.mod-cm6 .cm-tag { color: var(--code-tag, var(--color-red, #e06c75)); }
+.datafile-source-view.mod-cm6 .cm-attribute { color: var(--code-property, var(--color-cyan, #56b6c2)); }
+.datafile-source-view.mod-cm6 .cm-punctuation { color: var(--code-punctuation, var(--text-muted, #7f848e)); }
+.datafile-source-view.mod-cm6 .cm-bracket { color: var(--code-punctuation, var(--text-muted, #7f848e)); }
+.datafile-source-view.mod-cm6 .cm-error { color: var(--text-error, var(--color-red, #e06c75)); }

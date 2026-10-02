@@ -1,9 +1,8 @@
 import esbuild from "esbuild";
-import process from "process";
-import { builtinModules } from 'node:module';
-import fs from "fs";
-import path from "path";
-import { execSync } from "child_process";
+import fs from "node:fs";
+import { builtinModules } from "node:module";
+import path from "node:path";
+import process from "node:process";
 
 const banner =
 `/*
@@ -12,54 +11,106 @@ if you want to view the source, please visit the github repository of this plugi
 */
 `;
 
-const prod = (process.argv[2] === "production");
-
-const copyPlugin = {
-	name: 'copy-to-vaults',
-	setup(build) {
-		build.onEnd(() => {
-			const destinations = [
-				"/Users/xy/Library/Mobile Documents/iCloud~md~obsidian/Documents/bfcs/.obsidian/plugins/obsidian-file-editor",
-				"/Users/xy/Library/Mobile Documents/iCloud~md~obsidian/Documents/obsidian-demo/.obsidian/plugins/obsidian-file-editor"
-			];
-			const filesToCopy = [
-				"main.js",
-				"manifest.json",
-				"styles.css"
-			];
-			
-			destinations.forEach(dest => {
-				try {
-					if (!fs.existsSync(dest)) {
-						fs.mkdirSync(dest, { recursive: true });
-					}
-					filesToCopy.forEach(file => {
-						if (fs.existsSync(file)) {
-							const destPath = path.join(dest, file);
-							if (fs.existsSync(destPath)) {
-								fs.unlinkSync(destPath);
-							}
-							fs.linkSync(file, destPath);
-							console.log(`[CopyPlugin] Hard-linked ${file} to ${dest}`);
-						}
-					});
-				} catch (err) {
-					console.error(`[CopyPlugin] Failed to link to ${dest}:`, err);
-				}
-			});
-
-			// Trigger Obsidian vault reload synchronously
-			try {
-				execSync("obsidian reload");
-				console.log("[CopyPlugin] Obsidian reload triggered successfully");
-			} catch (err) {
-				console.error("[CopyPlugin] Failed to reload Obsidian:", err.message);
+const loadDotEnv = () => {
+	const envPath = path.resolve(".env");
+	if (!fs.existsSync(envPath)) return;
+	if (typeof process.loadEnvFile === "function") {
+		try {
+			process.loadEnvFile(envPath);
+		} catch {
+			// ignore and fallback to manual parsing
+		}
+	}
+	try {
+		const content = fs.readFileSync(envPath, "utf8");
+		for (const line of content.split(/\r?\n/)) {
+			const trimmed = line.trim();
+			if (!trimmed || trimmed.startsWith("#")) continue;
+			const eqIndex = trimmed.indexOf("=");
+			if (eqIndex === -1) continue;
+			const key = trimmed.slice(0, eqIndex).trim();
+			let value = trimmed.slice(eqIndex + 1).trim();
+			if (
+				(value.startsWith('"') && value.endsWith('"')) ||
+				(value.startsWith("'") && value.endsWith("'"))
+			) {
+				value = value.slice(1, -1);
 			}
-		});
+			if (!process.env[key]) {
+				process.env[key] = value;
+			}
+		}
+	} catch (e) {
+		console.warn("Failed to parse .env file:", e);
 	}
 };
+loadDotEnv();
 
+const prod = process.argv[2] === "production";
+const manifest = JSON.parse(fs.readFileSync("manifest.json", "utf8"));
 
+const getPluginOutDirs = () => {
+	const dirsRaw = process.env.PLUGIN_DIRS;
+	const candidateDirs = [];
+
+	if (dirsRaw) {
+		const splitDirs = dirsRaw
+			.split(/[;,]/)
+			.map((d) => d.trim())
+			.filter(Boolean);
+		candidateDirs.push(...splitDirs);
+	}
+
+	if (candidateDirs.length === 0) {
+		if (process.env.OBSIDIAN_PLUGIN_OUT_DIR) {
+			candidateDirs.push(process.env.OBSIDIAN_PLUGIN_OUT_DIR);
+		} else if (process.env.OBSIDIAN_PLUGINS_DIR) {
+			candidateDirs.push(process.env.OBSIDIAN_PLUGINS_DIR);
+		}
+	}
+
+	return candidateDirs.map((dir) => {
+		const resolved = path.resolve(dir);
+		return path.basename(resolved) === manifest.id
+			? resolved
+			: path.join(resolved, manifest.id);
+	});
+};
+
+const pluginOutDirs = getPluginOutDirs();
+
+const postBuildPlugin = {
+	name: "post-build",
+	setup(build) {
+		build.onEnd(() => {
+			const outfile = build.initialOptions.outfile;
+			if (!outfile) {
+				return;
+			}
+
+			const generatedCss = outfile.replace(/\.js$/, ".css");
+			const targetCss = outfile.replace(/main\.js$/, "styles.css");
+
+			if (generatedCss !== targetCss && fs.existsSync(generatedCss)) {
+				fs.renameSync(generatedCss, targetCss);
+			}
+
+			for (const outDir of pluginOutDirs) {
+				try {
+					fs.mkdirSync(outDir, { recursive: true });
+					fs.copyFileSync(outfile, path.join(outDir, "main.js"));
+					fs.copyFileSync("manifest.json", path.join(outDir, "manifest.json"));
+					if (fs.existsSync(targetCss)) {
+						fs.copyFileSync(targetCss, path.join(outDir, "styles.css"));
+					}
+					console.log(`Copied build artifacts to ${outDir}`);
+				} catch (err) {
+					console.error(`Failed to copy build artifacts to ${outDir}:`, err);
+				}
+			}
+		});
+	},
+};
 
 const context = await esbuild.context({
 	banner: {
@@ -81,15 +132,19 @@ const context = await esbuild.context({
 		"@lezer/common",
 		"@lezer/highlight",
 		"@lezer/lr",
-		...builtinModules],
+		...builtinModules,
+	],
 	format: "cjs",
+	platform: "node",
 	target: "es2018",
 	logLevel: "info",
 	sourcemap: prod ? false : "inline",
 	treeShaking: true,
 	outfile: "main.js",
 	minify: prod,
-	plugins: [copyPlugin],
+	plugins: [
+		postBuildPlugin,
+	],
 });
 
 if (prod) {
@@ -98,4 +153,3 @@ if (prod) {
 } else {
 	await context.watch();
 }
-

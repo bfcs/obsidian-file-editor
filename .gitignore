@@ -23,3 +23,9 @@ data.json
 
 # references
 references/
+
+# Local environment variables
+.env
+.env.*
+!.env.example
+.obsidian/
